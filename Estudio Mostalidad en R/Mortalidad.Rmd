@@ -1,0 +1,456 @@
+---
+title: "Tarea 7"
+author: "Silvia García Lara"
+date: "2024-11-06"
+output: html_document
+---
+## Mortalidad observada en 6 experimentos con 50 células dosificando 6 sustancias
+
+Observamos la mortalidad en los 6 experimentos con grupos de 50 células a las que se aplicaron diferentes dosificaciones de 5 sustancias.
+
+Para ello cargamos el conjunto de datos y lo almacenamos en un data frame, para poder ajustar los 3 modelos pedidos (Nulo, Saturado y Lineal) para cada conjunto de datos, con ayuda de un bucle.
+
+Tras obtener los AIC de cada modelo y conjunto, los almacenamos en otro data.frame para poder compararlos.
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(ggplot2)
+
+# Cargar los datos
+datos <- as.data.frame(read.delim("D:/UNIVERSIDAD/Estadística/CUARTO CURSO/Análisis de datos categóricos/Tarea7/datos.txt"))
+
+# Inicializar un data frame para almacenar los resultados de AIC
+resultados_AIC <- data.frame(Variable = character(), Modelo = character(), AIC = numeric(), stringsAsFactors = FALSE)
+
+# Ajustar modelos para cada columna de respuesta y almacenar los AICs
+for (i in 2:7) {
+  # Nombre de la columna de respuesta
+  respuesta <- datos[[i]]
+  nombre_respuesta <- colnames(datos)[i]
+  
+  # Ajustar modelos
+  modelo_nulo <- glm(cbind(respuesta, 50 - respuesta) ~ 1, family = binomial, data = datos)
+  modelo_saturado <- glm(cbind(respuesta, 50 - respuesta) ~ as.factor(x), family = binomial, data = datos)
+  modelo_lineal <- glm(cbind(respuesta, 50 - respuesta) ~ x, family = binomial, data = datos)
+  
+  # Almacenar los AICs de cada modelo en el data frame
+  resultados_AIC <- rbind(resultados_AIC,
+                          data.frame(Variable = nombre_respuesta, Modelo = "Nulo", AIC = AIC(modelo_nulo)),
+                          data.frame(Variable = nombre_respuesta, Modelo = "Saturado", AIC = AIC(modelo_saturado)),
+                          data.frame(Variable = nombre_respuesta, Modelo = "Lineal", AIC = AIC(modelo_lineal)))
+}
+
+print(resultados_AIC)
+```
+El mejor modelo para y1, y3, y4, e y5 es el modelo Lineal.
+El mejor modelo para y2 e y6 es el modelo Nulo.
+
+
+
+Realizamos las predicciones de cada modelo en cada conjunto de datos y para la representación calculamos la proporción de Mortalidad y vemos como cada uno de los modelos se ajusta a los datos.
+
+En azul vemos dibjuado el modelo Nulo, en verde el saturado y en rojo el lineal.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+library(ggplot2)
+
+# Cargar los datos
+datos <- as.data.frame(read.delim("D:/UNIVERSIDAD/Estadística/CUARTO CURSO/Análisis de datos categóricos/Tarea7/datos.txt"))
+
+# Inicializar un data frame para almacenar los resultados de AIC
+resultados_AIC <- data.frame(Variable = character(), Modelo = character(), AIC = numeric(), stringsAsFactors = FALSE)
+
+# Ajustar modelos para cada columna de respuesta y almacenar los AICs
+for (i in 2:7) {
+  # Nombre de la columna de respuesta
+  respuesta <- datos[[i]]
+  nombre_respuesta <- colnames(datos)[i]
+  
+  # Ajustar modelos
+  modelo_nulo <- glm(cbind(respuesta, 50 - respuesta) ~ 1, family = binomial, data = datos)
+  modelo_saturado <- glm(cbind(respuesta, 50 - respuesta) ~ as.factor(x), family = binomial, data = datos)
+  modelo_lineal <- glm(cbind(respuesta, 50 - respuesta) ~ x, family = binomial, data = datos)
+  
+
+
+  predicciones<-data.frame(
+    x=datos$x,
+    Observado=respuesta/50,
+    Nulo=predict(modelo_nulo,type="response"),
+    Saturado=predict(modelo_saturado,type="response"),
+    Lineal=predict(modelo_lineal, type = "response")
+  )
+
+  p<-ggplot(predicciones,aes(x=x))+
+    geom_point(aes(y=Observado),color="black",size=2)+
+    geom_line(aes(y=Nulo),color="blue",linetype="solid",size=1)+
+    geom_line(aes(y=Saturado),color="green",linetype="solid",size=1)+
+    geom_line(aes(y=Lineal),color="red",linetype="solid",size=1)+
+    labs(title="Ajuste Logístico Lineal",
+       y="Proporción de Mortalidad",
+       x="Dosis")
+  
+print(p)
+
+}
+
+
+
+```
+
+En todos los conjuntos de datos el modelo que mejor ajusta es el modelo saturado. El modelo lineal nos brinda una aproximación aun que no tan precisa como el saturado.
+
+
+
+
+
+Para el ajuste lineal a los datos en la columna y1
+
+- Trabajando Numéricamente
+
+Representa la logverosimilitud y estima el máximo verosímil.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+# Configuración inicial
+nombre_respuesta <- "y1"  # Variable de interés
+respuesta <- datos[[nombre_respuesta]]
+x <- datos$x
+n <- 50  # Tamaño de la muestra (ajusta si es necesario)
+
+# Función de log-verosimilitud para el modelo logístico
+log_verosimilitud <- function(parametros, x, y) {
+  beta0 <- parametros[1]
+  beta1 <- parametros[2]
+  
+  # Probabilidad estimada utilizando el modelo logístico
+  p <- 1 / (1 + exp(-(beta0 + beta1 * x)))
+  
+  # Log-verosimilitud para datos binomiales
+  ll <- sum(y * log(p) + (n - y) * log(1 - p))
+  
+  return(-ll)  # Retornamos el negativo porque optim minimiza por defecto
+}
+
+# Estimación de los parámetros (máximo verosímil) usando optim
+resultado <- optim(par = c(0, 0), fn = log_verosimilitud, x = x, y = respuesta, hessian = TRUE)
+
+# Extraer los parámetros estimados
+beta0_mle <- resultado$par[1]
+beta1_mle <- resultado$par[2]
+
+# Mostrar el máximo verosímil
+cat("Estimación del máximo verosímil:\n")
+cat("Beta0:", beta0_mle, "\n")
+cat("Beta1:", beta1_mle, "\n")
+
+# Crear un rango de valores para graficar la log-verosimilitud
+beta0_values <- seq(beta0_mle - 1, beta0_mle + 1, length.out = 50)
+beta1_values <- seq(beta1_mle - 1, beta1_mle + 1, length.out = 50)
+
+# Crear una matriz de log-verosimilitudes
+log_likelihood_matrix <- outer(beta0_values, beta1_values, 
+                               Vectorize(function(b0, b1) -log_verosimilitud(c(b0, b1), x, respuesta)))
+
+# Graficar la log-verosimilitud
+persp(beta0_values, beta1_values, log_likelihood_matrix,
+      xlab = "Beta0", ylab = "Beta1", zlab = "Log-Verosimilitud",
+      main = "Representación Log-Verosimilitud",
+      col = "lightblue", theta = 30, phi = 20, expand = 0.6)
+
+```
+Los intervalos de confianza al 95% tipo Wald para los parámetros beta[1] y beta[2] son:
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+
+# Tamaño de la muestra
+n <- 50  # suponiendo que cada valor es de un total de 50 observaciones
+
+# Crear un data frame para almacenar los resultados de los parámetros, errores estándar y los intervalos de confianza
+resultados_ML_IC <- data.frame(Beta0 = numeric(),
+                               Beta1 = numeric(),
+                               SE_Beta0 = numeric(),
+                               SE_Beta1 = numeric(),
+                               IC_Beta0_Lower = numeric(),
+                               IC_Beta0_Upper = numeric(),
+                               IC_Beta1_Lower = numeric(),
+                               IC_Beta1_Upper = numeric(),
+                               stringsAsFactors = FALSE)
+
+# Función de log-verosimilitud para el modelo logístico lineal
+log_verosimilitud <- function(parametros, x, y) {
+  beta0 <- parametros[1]
+  beta1 <- parametros[2]
+  
+  # Probabilidad estimada utilizando el modelo logístico
+  p <- 1 / (1 + exp(-(beta0 + beta1 * x)))
+  
+  # Log-verosimilitud para datos binomiales (y ~ Binomial(n, p))
+  ll <- sum(y * log(p) + (n - y) * log(1 - p))
+  
+  # Retornamos el negativo porque optim en R minimiza por defecto
+  return(-ll)
+}
+
+# Loop para ajustar el modelo y calcular los intervalos de confianza para cada columna de respuesta
+i<-1
+  # Nombre de la columna de respuesta
+  nombre_respuesta <- colnames(datos)[i]
+  respuesta <- datos[[i]]
+  x <- datos$x
+  
+  # Calcular el máximo verosímil de los parámetros usando optim
+  resultado <- optim(par = c(0, 0), fn = log_verosimilitud, x = x, y = respuesta, hessian = TRUE)
+  
+  # Extraer los parámetros estimados
+  beta0 <- resultado$par[1]
+  beta1 <- resultado$par[2]
+  
+  # Calcular los errores estándar a partir de la matriz Hessiana
+  hessian <- resultado$hessian
+  var_cov <- solve(hessian)  # Matriz de varianza-covarianza (inversa de la Hessiana)
+  se_beta0 <- sqrt(var_cov[1, 1])
+  se_beta1 <- sqrt(var_cov[2, 2])
+  
+  # Calcular los intervalos de confianza tipo Wald al 95%
+  z_value <- qnorm(0.975)  # Valor crítico para un IC al 95%
+  ic_beta0_lower <- beta0 - z_value * se_beta0
+  ic_beta0_upper <- beta0 + z_value * se_beta0
+  ic_beta1_lower <- beta1 - z_value * se_beta1
+  ic_beta1_upper <- beta1 + z_value * se_beta1
+  
+  # Almacenar los resultados en el data frame
+  resultados_ML_IC <- rbind(resultados_ML_IC,
+                            data.frame(Beta0 = beta0,
+                                       Beta1 = beta1,
+                                       SE_Beta0 = se_beta0,
+                                       SE_Beta1 = se_beta1,
+                                       IC_Beta0_Lower = ic_beta0_lower,
+                                       IC_Beta0_Upper = ic_beta0_upper,
+                                       IC_Beta1_Lower = ic_beta1_lower,
+                                       IC_Beta1_Upper = ic_beta1_upper))
+
+
+
+# Mostrar los resultados
+res<-t(resultados_ML_IC)
+colnames(res)<-"y1"
+print(as.data.frame(res))
+
+```
+
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+# Tamaño de la muestra
+n <- 50  # suponiendo que cada valor es de un total de 50 observaciones
+
+# Función de log-verosimilitud para el modelo logístico lineal con beta1 fijo
+log_verosimilitud_perfil <- function(beta1, x, y) {
+  # Optimizar solo beta0 con beta1 fijo
+  optim_result <- optim(par = 0, 
+                        fn = function(beta0) log_verosimilitud(c(beta0, beta1), x, y),
+                        method = "BFGS")
+  return(-optim_result$value)  # Retornamos la log-verosimilitud negativa
+}
+
+# Nombre de la columna de respuesta
+nombre_respuesta <- "y1"  # Puedes cambiarlo para y2, y3, etc.
+respuesta <- datos[[nombre_respuesta]]
+x <- datos$x
+
+# Estimar los parámetros iniciales
+resultado <- optim(par = c(0, 0), fn = log_verosimilitud, x = x, y = respuesta, hessian = TRUE)
+beta1_mle <- resultado$par[2]  # Estimación de beta1
+
+# Crear un rango de valores alrededor de la estimación de beta1
+beta1_values <- seq(beta1_mle - 1, beta1_mle + 1, length.out = 100)
+log_likelihood_profile <- sapply(beta1_values, log_verosimilitud_perfil, x = x, y = respuesta)
+
+# Calcular el umbral para el intervalo de confianza (1.92 unidades por debajo del máximo)
+max_log_likelihood <- max(log_likelihood_profile)
+threshold <- max_log_likelihood - 1.92
+
+# Encontrar el intervalo de confianza basado en la verosimilitud perfil
+ci_indices <- which(log_likelihood_profile >= threshold)
+ci_beta1 <- range(beta1_values[ci_indices])
+
+# Graficar la verosimilitud perfil
+plot(beta1_values, log_likelihood_profile, type = "l", col = "blue", lwd = 2,
+     xlab = expression(beta[1]), ylab = "Log-Verosimilitud Perfil",
+     main = paste("Log-Verosimilitud Perfil para", nombre_respuesta))
+abline(h = threshold, col = "red", lty = 2)  # Línea de umbral
+abline(v = ci_beta1, col = "green", lty = 2)  # Líneas del intervalo de confianza
+
+
+
+# Mostrar el intervalo de confianza
+cat("Intervalo de confianza al 95% para beta1 basado en la verosimilitud perfil:", ci_beta1, "\n")
+
+
+
+```
+- Trabajando con el ajuste dado por la función glm
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Ajustar el modelo con glm
+modelo_glm <- glm(cbind(y1, 50 - y1) ~ x, family = binomial, data = datos)
+
+# Intervalos de confianza tipo Wald
+ic_wald <- confint.default(modelo_glm)
+print("Intervalos de confianza tipo Wald:")
+print(ic_wald)
+
+# Intervalos de confianza por verosimilitud perfil
+ic_verosimilitud <- confint(modelo_glm)
+print("Intervalos de confianza por verosimilitud perfil:")
+print(ic_verosimilitud)
+
+
+```
+
+Podemos comprobar que los intervalos obtenidos se parecen al obtenido numéricamente.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#Extraer los coeficientes del modelo
+beta0 <- coef(modelo_glm)[1]
+beta1 <- coef(modelo_glm)[2]
+```
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
+#Calcular los valores de x para LD30, LD50 y LD80
+LD50 <- (log(0.50 / (1 - 0.50)) - beta0) / beta1
+LD30 <- (log(0.30 / (1 - 0.30)) - beta0) / beta1
+LD80 <- (log(0.80 / (1 - 0.80)) - beta0) / beta1
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+cat("\nValores de LD:\n")
+cat("LD50:", LD50, "\n")
+cat("LD30:", LD30, "\n")
+cat("LD80:", LD80, "\n")
+```
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
+# Calcular los intervalos de confianza para LD30, LD50 y LD80 usando los intervalos de los coeficientes
+LD50_lower <- (log(0.50 / (1 - 0.50)) - ic_verosimilitud[1, 2]) / ic_verosimilitud[2, 1]
+LD50_upper <- (log(0.50 / (1 - 0.50)) - ic_verosimilitud[1, 1]) / ic_verosimilitud[2, 2]
+
+LD30_lower <- (log(0.30 / (1 - 0.30)) - ic_verosimilitud[1, 2]) / ic_verosimilitud[2, 1]
+LD30_upper <- (log(0.30 / (1 - 0.30)) - ic_verosimilitud[1, 1]) / ic_verosimilitud[2, 2]
+
+LD80_lower <- (log(0.80 / (1 - 0.80)) - ic_verosimilitud[1, 2]) / ic_verosimilitud[2, 1]
+LD80_upper <- (log(0.80 / (1 - 0.80)) - ic_verosimilitud[1, 1]) / ic_verosimilitud[2, 2]
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+cat("\nIntervalos de confianza para los valores de LD:\n")
+cat("LD50 Intervalo de confianza:", LD50_lower, "a", LD50_upper, "\n")
+cat("LD30 Intervalo de confianza:", LD30_lower, "a", LD30_upper, "\n")
+cat("LD80 Intervalo de confianza:", LD80_lower, "a", LD80_upper, "\n")
+
+```
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
+# Calcular la probabilidad para x = 8 y x = 14
+probabilidad_x8 <- 1 / (1 + exp(-(beta0 + beta1 * 8)))
+probabilidad_x14 <- 1 / (1 + exp(-(beta0 + beta1 * 14)))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+cat("\nProbabilidad para x=8:", probabilidad_x8, "\n")
+cat("Probabilidad para x=14:", probabilidad_x14, "\n")
+
+# Calcular los intervalos de confianza para las probabilidades en x = 8 y x = 14
+# Para calcular el intervalo de confianza para la probabilidad, necesitamos los intervalos de los parámetros
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Función para calcular la probabilidad con los límites de los coeficientes
+probabilidad_ic <- function(x, beta0_lower, beta0_upper, beta1_lower, beta1_upper) {
+  prob_lower <- 1 / (1 + exp(-(beta0_lower + beta1_lower * x)))
+  prob_upper <- 1 / (1 + exp(-(beta0_upper + beta1_upper * x)))
+  return(c(prob_lower, prob_upper))
+}
+```
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+
+
+# Calcular IC para x = 8
+probabilidad_x8_ic <- probabilidad_ic(8, ic_verosimilitud[1, 1], ic_verosimilitud[1, 2], ic_verosimilitud[2, 1], ic_verosimilitud[2, 2])
+
+# Calcular IC para x = 14
+probabilidad_x14_ic <- probabilidad_ic(14, ic_verosimilitud[1, 1], ic_verosimilitud[1, 2], ic_verosimilitud[2, 1], ic_verosimilitud[2, 2])
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Mostrar los resultados
+cat("\nIntervalo de confianza para la probabilidad en x=8:", probabilidad_x8_ic, "\n")
+cat("Intervalo de confianza para la probabilidad en x=14:", probabilidad_x14_ic, "\n")
+
+```
+## Mortalidad observada en 5 experimentos con 100 células de 2 tipos dosificando 5 sustancias
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Cargar los datos
+datos2 <- as.data.frame(read.delim("D:/UNIVERSIDAD/Estadística/CUARTO CURSO/Análisis de datos categóricos/Tarea7/datos2.txt"))
+
+# Convertir z en factor (ya que es categórico)
+datos2$z <- as.factor(datos2$z)
+
+# Lista de las columnas de mortalidad
+columnas_y <- c("y1", "y2", "y3", "y4", "y5")
+
+# Función para ajustar y comparar modelos logísticos
+ajustar_comparar_modelos <- function(datos, y_columna) {
+  
+  # Ajuste de los modelos logísticos
+  modelo_nulo <- glm(cbind(datos[[y_columna]], 100 - datos[[y_columna]]) ~ 1, family = binomial, data = datos)
+  modelo_saturado <- glm(cbind(datos[[y_columna]], 100 - datos[[y_columna]]) ~ x * z, family = binomial, data = datos)
+  modelo_dosis_lineal <- glm(cbind(datos[[y_columna]], 100 - datos[[y_columna]]) ~ x + z, family = binomial, data = datos)
+  
+  # Comparación de los modelos utilizando AIC
+  aic_modelos <- AIC(modelo_nulo, modelo_saturado, modelo_dosis_lineal)
+  
+  # Determinar el mejor modelo
+  mejor_modelo <- which.min(aic_modelos$AIC)
+  
+  # Mostrar el mejor modelo y su AIC
+  cat("Mejor modelo para", y_columna, ": ", rownames(aic_modelos)[mejor_modelo], "\n")
+  cat("AIC del mejor modelo:", aic_modelos[mejor_modelo, "AIC"], "\n\n")
+  
+  # Mostrar los coeficientes del mejor modelo
+  if (mejor_modelo == 1) {
+    summary(modelo_nulo)
+  } else if (mejor_modelo == 2) {
+    summary(modelo_saturado)
+  } else {
+    summary(modelo_dosis_lineal)
+  }
+  
+  # Graficar los datos y el modelo ajustado
+  p<-ggplot(datos, aes(x = x, y = datos[[y_columna]] / 100, color = z)) +
+    geom_point() +
+    geom_smooth(method = "glm", method.args = list(family = "binomial"), formula = y ~ x) +
+    labs(title = paste("Ajuste del Modelo Logístico para", y_columna), x = "Dosis", y = "Proporción de Células Muertas") +
+    theme_minimal() +
+    theme(legend.title = element_blank()) +
+    scale_color_manual(values = c("red", "blue"))  # Puedes ajustar los colores según tus necesidades
+  print(p)
+}
+
+# Ajustar y comparar para cada columna y
+for (y_columna in columnas_y) {
+  ajustar_comparar_modelos(datos2, y_columna)
+}
+
+
+```
+
+
