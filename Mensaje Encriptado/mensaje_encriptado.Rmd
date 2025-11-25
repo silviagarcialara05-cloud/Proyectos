@@ -1,0 +1,341 @@
+---
+title: "Práctica Entregable"
+author: "Silvia García Lara"
+date: "2024-12-10"
+output: html_document
+---
+## Desencriptar un mensaje
+
+El objetivo de esta práctica es descifrar un mensaje dado al que se le han aplicado una serie de permutaciones de tal forma que es ilegible.
+
+**Mensaje original**
+```{r include=TRUE, echo=TRUE,warning=FALSE}
+mensaje_cifrado <- readLines("D:/UNIVERSIDAD/Estadística/CUARTO CURSO/Procesos estocásticos/Práctica 1 Entregable/mensaje_cifrado.txt")
+mensaje_cifrado
+```
+
+## Importación de los datos
+
+Se muestran por pantalla las primeras filas de los ficheros dados que contienen las frecuencias de los monogramas, bigramas, trigramas y longitud de las palabras
+
+```{r include=TRUE, echo=TRUE,warning=FALSE}
+
+monogramas_espanol <- read.csv("D:/UNIVERSIDAD/Estadística/CUARTO CURSO/Procesos estocásticos/Práctica 1 Entregable/monogramas_espanol.txt", sep="")
+
+bigramas_espanol <- read.csv("D:/UNIVERSIDAD/Estadística/CUARTO CURSO/Procesos estocásticos/Práctica 1 Entregable/bigramas_espanol.txt", sep="")
+
+trigramas_espanol <- read.csv("D:/UNIVERSIDAD/Estadística/CUARTO CURSO/Procesos estocásticos/Práctica 1 Entregable/trigramas_espanol.txt", sep="")
+
+long_palabras_espanol <- read.csv("D:/UNIVERSIDAD/Estadística/CUARTO CURSO/Procesos estocásticos/Práctica 1 Entregable/long_palabras_espanol.txt", sep="")
+
+#Comprobamos que se han importado correctamente los datos
+
+head(monogramas_espanol)
+head(bigramas_espanol)
+head(trigramas_espanol)
+head(long_palabras_espanol)
+
+```
+
+## Funciones auxiliares proporcionadas
+
+Usaremos las siguientes funciones en el algoritmo que descifrará el mensaje
+```{r include=TRUE, echo=TRUE,warning=FALSE}
+
+#### funciones auxiliares
+
+clave<-c(toupper(letters)[1:14],"Ñ",toupper(letters)[15:26]," ")
+
+letra_a_numero<-function(a) match(a,clave) 
+numero_a_letra<-function(n) clave[n]
+
+## funcion que transforma mensaje de texto 
+## a secuencia de numeros
+
+mensaje_a_numero<-function(mensaje){
+  mensajenumerado<-NULL
+  for(i in 1:nchar(mensaje)){
+    mensajenumerado<-c(mensajenumerado,letra_a_numero(substring(mensaje,i,i)))  
+  }
+  return(mensajenumerado)
+}
+
+## funcion que transforma secuencia de numeros
+## a mensaje de texto 
+
+mensaje_a_letra<-function(mensaje){
+  mensajetexto<-NULL
+  for(i in 1:length(mensaje)){
+    mensajetexto<-paste(mensajetexto,numero_a_letra(mensaje[i]),sep='')  
+  }
+  return(mensajetexto)
+}
+
+monogramas_palabra <- function(palabra) {
+  monogramas<-unlist(strsplit(palabra,''))
+  return(monogramas)
+}
+
+
+
+bigramas_palabra <- function(palabra) {
+  aaa<-unlist(strsplit(palabra,''))
+  nnn<-length(aaa)
+  bigramas<-paste0(aaa[1:(nnn-1)],aaa[2:nnn])
+  return(bigramas)
+}
+
+trigramas_palabra <- function(palabra) {
+  aaa<-unlist(strsplit(palabra,''))
+  nnn<-length(aaa)
+  trigramas<-paste0(aaa[1:(nnn-2)],aaa[2:(nnn-1)],aaa[3:nnn])
+  return(trigramas)
+}
+
+
+
+## funcion que aplica el descifrado de sustitucion 
+## dado por ordenacion
+
+decodificador<-function(mensaje,ordenacion){
+  fun.auxiliar<-function(i) ordenacion[i]
+  mensaje_decodificado<-NULL
+  for (j in 1:length(mensaje)) mensaje_decodificado<-c(mensaje_decodificado,fun.auxiliar(mensaje[j]))
+  return(mensaje_decodificado)
+}
+```
+
+
+Ahora que hemos cargado todos los datos dados, vamos a implementar las funciones necesarias para calcular el score de una permutación dada.
+
+## Calculo del Score
+
+**Funciones necesarias para calcular el score**
+
+Se comienza implementando 4 funciones.
+
+Las 3 primeras asocian un monograma, bigrama y trigama dado con su frecuencia correspondiente en la tabla proporcionada respectivamente. 
+En caso de que alguno de los monogramas no se encuentre en dicha tabla, le asociamos la frecuencia 1e-08.
+
+```{r include=TRUE, echo=TRUE,warning=FALSE}
+
+frecuencia_monogramas <- function(monograma){
+  if(monograma %in% monogramas_espanol$monograma){
+    
+    i <- match(monograma, monogramas_espanol$monograma)
+    freq <- monogramas_espanol$frecuencia[i]
+    
+  } else {
+    freq <- 1e-08
+  }
+  return(freq)
+}
+
+
+frecuencia_bigramas <- function(bigrama){
+  
+  if(bigrama %in% bigramas_espanol$bigrama){
+    
+    i <- match(bigrama, bigramas_espanol$bigrama)
+    freq <- bigramas_espanol$frecuencia[i]
+    
+  }
+  else{
+    
+    freq <- 1e-8
+  } 
+  return(freq)
+}
+
+
+frecuencia_trigramas <- function(trigrama){
+  
+  if(trigrama %in% trigramas_espanol$trigrama){
+    
+    i <- match(trigrama, trigramas_espanol$trigrama)
+    freq <- trigramas_espanol$frecuencia[i]
+    
+  }
+  else{
+    
+    freq <- 1e-08
+  }
+  return(freq)
+}
+
+```
+
+Para la 4ª función, realizamos lo mismo pero con la longitud de una palabra. Pasamos una palabra a la función y nos devuelve la frecuencia correspondiente a dicha palabra, siempre y cuando su longitud sea menor que 24 (y mayor que 0). 
+En caso de que la palabra proporcionada tenga una longitud mayor de 24, le asociamos la frecuencia 1e-08.
+
+```{r include=TRUE, echo=TRUE,warning=FALSE}
+
+frecuencia_long_palabras <- function(long){
+  
+  if(0<long & long<24){
+    
+    freq <- long_palabras_espanol$frecuencia[long]
+  }
+  else{
+    
+    freq <- 1e-08
+  }
+  return(freq)
+}
+
+```
+
+
+**Función principal Score**
+
+Para poder calcular el Score total tenemos que conocer las puntuaciones que obtenemos con score1, score2, score3 y score4 que están asociados al score de la longitud de la palabra, de los monogramas, bigramas y trigramas respectivamente.
+
+```{r include=TRUE, echo=TRUE,warning=FALSE}
+
+
+#Logngitud
+log_s1 <- function(palabra){
+  logscore1 <- log10(frecuencia_long_palabras(nchar(palabra)))
+  return(logscore1)
+}
+
+#Monogramas
+log_s2 <- function(palabra){
+  log_monogramas_espanol <- log10(unlist(lapply(unlist(strsplit(palabra, '')), frecuencia_monogramas)))
+  logscore <- sum(log_monogramas_espanol)
+  return(logscore)
+}
+
+#Bigramas
+log_s3 <- function(palabra){
+  
+  if(nchar(palabra)==0 | nchar(palabra)==1){
+    
+    logscore2 <- log10(1e-08) 
+  }
+  else{
+    
+    bigramas <- bigramas_palabra(palabra) 
+    log_bigramas_espanol <- log10(unlist(lapply(bigramas, frecuencia_bigramas)))
+    logscore2 <- sum(log_bigramas_espanol)
+  }
+  return(logscore2)
+}
+
+#Trigramas
+log_s4 <- function(palabra){
+  if(nchar(palabra)==0 | nchar(palabra)==1 | nchar(palabra) ==2){
+    logscore3 <- log10(1e-8) 
+  }else{
+    log_trigramas_espanol <- log10(unlist(lapply(trigramas_palabra(palabra), frecuencia_trigramas)))
+    logscore3 <- sum(log_trigramas_espanol)
+  }
+  return(logscore3)
+}
+
+```
+
+
+Se define una última función que tenga como parámetro de entrada una permutación y como parámtero de salida el logaritmo del score asociado a la permutación introducida.
+
+```{r include=TRUE, echo=TRUE,warning=FALSE}
+
+log_score <- function(permutacion){
+  # Aplica la permutación introducida al mensaje cifrado inicial
+  p_mensaje_cifrado <- mensaje_a_letra(decodificador(mensaje_cifrado_numerico, permutacion))
+  
+  # Extrae palabras del mensaje
+  p_mensaje_cifrado_palabras <- unlist(strsplit(p_mensaje_cifrado, split = ' '))
+  
+  # Elimina palabras de longitud 0
+  p_mensaje_cifrado_palabras <- p_mensaje_cifrado_palabras[nchar(p_mensaje_cifrado_palabras) != 0]
+  
+  # Calcula los scores individuales
+  log_score1 <- sum(unlist(lapply(p_mensaje_cifrado_palabras, log_s1)))
+  log_score2 <- sum(unlist(lapply(p_mensaje_cifrado_palabras, log_s2)))
+  log_score3 <- sum(unlist(lapply(p_mensaje_cifrado_palabras, log_s3)))
+  log_score4 <- sum(unlist(lapply(p_mensaje_cifrado_palabras, log_s4)))
+  
+  #Elegimos un score
+  log_score <- log_score1 + 2*log_score2 + 3*log_score3 + 4*log_score4
+  
+  return(log_score)
+}
+
+```
+Para la función anterior, se ha elegido el score: score(f) = score1(f)+ 2*score2(f)+ 3*score3(f)+ 4*score4(f).
+Se da más reelevancia a la puntuación que se obtenga en el orden de mayor a menor: trigramas, bigramas, monogramas y por último la longitud de la palabra.
+
+En el siguiente paso creamos una función que genera una transposición aleatoria de una permutación dada.
+
+```{r include=TRUE, echo=TRUE,warning=FALSE}
+
+transposicion<- function(permutacion){
+  
+  ii<-sample(1:28, 2)
+  permutacion[ii]<-c(permutacion[ii[2]], permutacion[ii[1]]) #Interacambio ii[2] e ii[1]
+  return(permutacion)
+}
+
+```
+
+## Algoritmo de Metropolis-Hastings
+
+```{r include=TRUE, echo=TRUE,warning=FALSE}
+
+
+#Pasamos a mensaje numérico el mensaje de texto original
+
+mensaje_cifrado_numerico <- mensaje_a_numero(mensaje_cifrado)
+mensaje_cifrado_numerico
+
+
+N <- 50000
+kk <- Sys.time()
+permutacion <- sample(1:28)
+log_score_permutacion <- log_score(permutacion)
+
+mejor_permutacion <- permutacion
+mejor_log_score <- log_score_permutacion
+log_scores <- numeric(N)
+
+for (i in 1:N) {
+  nueva_permutacion <- transposicion(permutacion)
+  nuevo_log_score <- log_score(nueva_permutacion)
+  
+  if (nuevo_log_score > mejor_log_score) {
+    mejor_permutacion <- nueva_permutacion
+    mejor_log_score <- nuevo_log_score
+  }
+  
+  if (runif(1) < exp((nuevo_log_score - log_score_permutacion))) {
+    permutacion <- nueva_permutacion
+    log_score_permutacion <- nuevo_log_score
+  }
+  
+  log_scores[i] <- log_score_permutacion
+  
+  if (i %% 10000 == 0) {
+    mensaje_final <- mensaje_a_letra(decodificador(mensaje_cifrado_numerico, permutacion))
+    print(paste("Iteración:", i, "| Log Score:", log_score_permutacion))
+    print(mensaje_final)
+  }
+}
+
+
+```
+
+Tras aplicar el algoritmo conseguimos el siguiente mensaje:
+
+
+```{r include=TRUE, echo=FALSE,warning=FALSE}
+
+mensaje_final <- mensaje_a_letra(decodificador(mensaje_cifrado_numerico, mejor_permutacion))
+print(paste("Mejor mensaje encontrado:", mensaje_final))
+
+```
+
+Aun que el mensaje no es completamente correcto, el texto obtenido tiene algunas letras todavía permutadas, pero se puede descifrar y ver que el mensaje final correcto es el siguiente:
+
+
+**LA EXTENSA Y VARIADA PRODUCCION EN PROSA DE FRANCISCO DE QUEVEDO REFLEJA TANTO SUS INTERESES Y PREOCUPACIONES COMO SU EXCEPCIONAL DOMINIO DE LA LENGUA LITERARIA SUS REFLEXIONES MORALES POLITICAS Y LITERARIAS PUEDEN LEERSE EN OBRAS COMO LOS SUEÑOS UNA SATIRA DE OFICIOS Y TIPOS HUMANOS LA HORA DE TODOS EL DIA EN QUE TODOS LOS PERSONAJES SON OBLIGADOS DURANTE UNA HORA A ACTUAR SIN FINGIMIENTO POLITICA DE DIOS QUE TRATA ACERCA DEL BUEN GOBIERNO DE LA NACION O DE CULTA LATINIPARLA EL DIA QUE SE BURLA DEL ESTILO CULTERANO TODAS ESTAS SON OBRAS QUE CORRESPONDEN A LA PROSA DIDACTICA**
